@@ -133,7 +133,7 @@ public class MetricsServerTest extends MetricsTest {
         assertRawCacheEquals(hour(4), startScheduleId(scheduleId), expected);
 
         int partition = 0;
-        assertRawCacheIndexEquals(hour(4), partition, asList(newRawCacheIndexEntry(startScheduleId(scheduleId),
+        assertRawCacheIndexEquals(today(), partition, asList(newRawCacheIndexEntry(today(), startScheduleId(scheduleId),
             hour(4))));
     }
 
@@ -170,10 +170,10 @@ public class MetricsServerTest extends MetricsTest {
         assertRawCacheEquals(hour(5), startScheduleId(scheduleId2), expected2);
         assertRawCacheEquals(hour(5), startScheduleId(scheduleId3), expected3, expected4);
 
-        assertRawCacheIndexEquals(hour(5), partition, asList(
-            newRawCacheIndexEntry(startScheduleId(scheduleId1), hour(5)),
-            newRawCacheIndexEntry(startScheduleId(scheduleId2), hour(5)),
-            newRawCacheIndexEntry(startScheduleId(scheduleId3), hour(5))
+        assertRawCacheIndexEquals(today(), partition, asList(
+            newRawCacheIndexEntry(today(), startScheduleId(scheduleId1), hour(5)),
+            newRawCacheIndexEntry(today(), startScheduleId(scheduleId2), hour(5)),
+            newRawCacheIndexEntry(today(), startScheduleId(scheduleId3), hour(5))
         ));
     }
 
@@ -185,10 +185,11 @@ public class MetricsServerTest extends MetricsTest {
         int scheduleId4 = 149;
         int partition = 0;
         Set<MeasurementDataNumeric> data = ImmutableSet.of(
-            new MeasurementDataNumeric(hour(3).plusMinutes(39).getMillis(), scheduleId1, 2.17),
-            new MeasurementDataNumeric(hour(4).plusMinutes(51).getMillis(), scheduleId2, 85.0),
+            new MeasurementDataNumeric(yesterday().plusHours(19).plusMinutes(39).getMillis(), scheduleId1, 2.17),
+            new MeasurementDataNumeric(yesterday().plusHours(19).plusMinutes(51).getMillis(), scheduleId2, 85.0),
             new MeasurementDataNumeric(hour(4).plusMinutes(51).getMillis(), scheduleId4, 22.5),
             new MeasurementDataNumeric(hour(5).plusMinutes(11).getMillis(), scheduleId3, 3.14)
+
         );
         WaitForRawInserts waitForRawInserts = new WaitForRawInserts(data.size());
 
@@ -196,24 +197,31 @@ public class MetricsServerTest extends MetricsTest {
         metricsServer.addNumericData(data, waitForRawInserts);
         waitForRawInserts.await("Failed to insert raw data");
 
-        RawNumericMetric expected1 = new RawNumericMetric(scheduleId1, hour(3).plusMinutes(39).getMillis(), 2.17);
-        RawNumericMetric expected2 = new RawNumericMetric(scheduleId2, hour(4).plusMinutes(51).getMillis(), 85.0);
+        RawNumericMetric expected1 = new RawNumericMetric(scheduleId1, yesterday().plusHours(19).plusMinutes(39)
+            .getMillis(), 2.17);
+        RawNumericMetric expected2 = new RawNumericMetric(scheduleId2, yesterday().plusHours(19).plusMinutes(51)
+            .getMillis(), 85.0);
         RawNumericMetric expected3 = new RawNumericMetric(scheduleId3, hour(5).plusMinutes(11).getMillis(), 3.14);
         RawNumericMetric expected4 = new RawNumericMetric(scheduleId4, hour(4).plusMinutes(51).getMillis(), 22.5);
 
-        assertRawDataEquals(scheduleId1, hour(3), hour(4), expected1);
-        assertRawDataEquals(scheduleId2, hour(4), hour(5), expected2);
+        assertRawDataEquals(scheduleId1, yesterday().plusHours(19), yesterday().plusHours(20), expected1);
+        assertRawDataEquals(scheduleId2, yesterday().plusHours(19), yesterday().plusHours(20), expected2);
         assertRawDataEquals(scheduleId3, hour(5), hour(6), expected3);
         assertRawDataEquals(scheduleId4, hour(4), hour(5), expected4);
 
-        assertRawCacheEquals(hour(3), startScheduleId(scheduleId1), expected1);
-        assertRawCacheEquals(hour(4), startScheduleId(scheduleId2), expected2, expected4);
+        assertRawCacheEquals(yesterday().plusHours(19), startScheduleId(scheduleId1), expected1);
+        assertRawCacheEquals(yesterday().plusHours(19), startScheduleId(scheduleId2), expected2);
         assertRawCacheEquals(hour(5), startScheduleId(scheduleId3), expected3);
 
-        assertRawCacheIndexEquals(hour(5), partition, asList(
-            newRawCacheIndexEntry(startScheduleId(scheduleId1), hour(3), ImmutableSet.of(scheduleId1)),
-            newRawCacheIndexEntry(startScheduleId(scheduleId2), hour(4), ImmutableSet.of(scheduleId2, scheduleId4)),
-            newRawCacheIndexEntry(startScheduleId(scheduleId3), hour(5))
+        assertRawCacheIndexEquals(yesterday(), partition, asList(
+            newRawCacheIndexEntry(yesterday(), startScheduleId(scheduleId1), yesterday().plusHours(19),
+                ImmutableSet.of(scheduleId1)),
+            newRawCacheIndexEntry(yesterday(), startScheduleId(scheduleId2), yesterday().plusHours(19),
+                ImmutableSet.of(scheduleId2))
+        ));
+        assertRawCacheIndexEquals(today(), partition, asList(
+            newRawCacheIndexEntry(today(), startScheduleId(scheduleId4), hour(4), ImmutableSet.of(scheduleId4)),
+            newRawCacheIndexEntry(today(), startScheduleId(scheduleId3), hour(5))
         ));
     }
 
@@ -287,11 +295,11 @@ public class MetricsServerTest extends MetricsTest {
         double secondValue = 2.2;
         double thirdValue = 3.3;
 
-        insertRawData(hour8,
+        insertRawData(
             new MeasurementDataNumeric(firstMetricTime.getMillis(), scheduleId, firstValue),
             new MeasurementDataNumeric(secondMetricTime.getMillis(), scheduleId, secondValue),
             new MeasurementDataNumeric(thirdMetricTime.getMillis(), scheduleId, thirdValue)
-        ).await("Failed to insert raw data");
+        );
 
         setNow(hour9.plusHours(1));
         metricsServer.calculateAggregates(100, 1000);
@@ -311,35 +319,6 @@ public class MetricsServerTest extends MetricsTest {
 
         // verify that the 1 hour cache has been purged
         assertRawCacheEmpty(hour8, startScheduleId(scheduleId));
-    }
-
-    @Test(enabled = ENABLED)
-    public void aggregate1HourDataDuring12thHour() {
-        int scheduleId = 123;
-
-        double min1 = 1.1;
-        double avg1 = 2.2;
-        double max1 = 9.9;
-
-        double min2 = 4.4;
-        double avg2 = 5.5;
-        double max2 = 6.6;
-
-        List<AggregateNumericMetric> oneHourMetrics = asList(
-            new AggregateNumericMetric(scheduleId, avg1, min1, max1, hour(7).getMillis()),
-            new AggregateNumericMetric(scheduleId, avg2, min2, max2, hour(8).getMillis())
-        );
-        insert1HourData(hour(6), oneHourMetrics.toArray(new AggregateNumericMetric[2]));
-
-        setNow(hour0().plusHours(13));
-        metricsServer.calculateAggregates(MIN_SCHEDULE_ID, MAX_SCHEDULE_ID);
-
-        assert6HourDataEquals(scheduleId, asList(new AggregateNumericMetric(scheduleId, divide((avg1 + avg2), 2), min1,
-            max1, hour(6).getMillis())));
-        assert1HourCacheEmpty(hour(6), startScheduleId(scheduleId));
-        assert6HourCacheEquals(hour(0), startScheduleId(scheduleId), asList(new AggregateNumericMetric(scheduleId,
-            avg(avg1, avg2), Math.min(min1, min2), Math.max(max1, max2), hour(6).getMillis())));
-        assert24HourDataEmpty(scheduleId);
     }
 
     /**
@@ -463,37 +442,6 @@ public class MetricsServerTest extends MetricsTest {
         // verify that we have a 24 hour aggregate for the previous day's data
         assert24HourDataEquals(scheduleId, asList(new AggregateNumericMetric(scheduleId, hour20YesterdayAvg,
             hour20YesterdayMin, hour20YesterdayMax, hour0Yesterday.getMillis())));
-    }
-
-    @Test(enabled = ENABLED)
-    public void aggregate6HourDataDuring24thHour() throws Exception {
-        // set up the test fixture
-        int scheduleId = 123;
-
-        double min1 = 1.1;
-        double avg1 = 2.2;
-        double max1 = 3.3;
-
-        double min2 = 4.4;
-        double avg2 = 5.5;
-        double max2 = 6.6;
-
-        // insert 6 hour data to be aggregated
-        insert6HourData(hour(0), new AggregateNumericMetric(scheduleId, avg1, min1, max1, hour(6).getMillis()))
-            .await("Failed to insert 6 hour data");
-        insert6HourData(hour(0), new AggregateNumericMetric(scheduleId, avg2, min2, max2, hour(12).getMillis()))
-            .await("Failed to insert 6 hour data");
-
-        setNow(hour(24).plusHours(1));
-        metricsServer.calculateAggregates(MIN_SCHEDULE_ID, MAX_SCHEDULE_ID);
-
-        // verify the results
-        // verify that the 6 hour data is aggregated
-        assert24HourDataEquals(scheduleId, asList(new AggregateNumericMetric(scheduleId, divide(avg1 + avg2, 2),
-            min1, max2, hour(0).getMillis())));
-
-        // verify that the 24 hour queue is updated
-        assert6HourCacheEmpty(hour(0), startScheduleId(scheduleId));
     }
 
     @Test//(enabled = ENABLED)
@@ -913,6 +861,12 @@ public class MetricsServerTest extends MetricsTest {
             actualData.get(59), TEST_PRECISION);
         assertPropertiesMatch("The data for bucket 29 does not match the expected values.", expectedBucket29Data,
             actualData.get(29), TEST_PRECISION);
+    }
+
+    private void insertRawData(MeasurementDataNumeric... data) throws Exception {
+        WaitForRawInserts waitForRawInserts = new WaitForRawInserts(data.length * 3);
+        metricsServer.addNumericData(ImmutableSet.copyOf(data), waitForRawInserts);
+        waitForRawInserts.await("Failed to insert raw data");
     }
 
     private void assertColumnMetadataEquals(int scheduleId, DateTime startTime, DateTime endTime, Integer ttl,
