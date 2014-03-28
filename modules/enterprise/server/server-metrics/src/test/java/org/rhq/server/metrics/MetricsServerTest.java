@@ -87,7 +87,7 @@ public class MetricsServerTest extends MetricsTest {
 
         metricsServer.setDAO(dao);
         metricsServer.setCacheBatchSize(PARTITION_SIZE);
-        metricsServer.init(MIN_SCHEDULE_ID, MAX_SCHEDULE_ID);
+        metricsServer.init();
 
         purgeDB();
     }
@@ -334,24 +334,31 @@ public class MetricsServerTest extends MetricsTest {
     public void runAggregationIn15thHourAfterServerOutage() throws Exception {
         int scheduleId = 123;
 
-        insertRawData(hour(10),
+        setNow(hour(11));
+        Set<MeasurementDataNumeric> data = ImmutableSet.of(
             new MeasurementDataNumeric(hour(10).plusMinutes(5).getMillis(), scheduleId, 5.0),
             new MeasurementDataNumeric(hour(10).plusMinutes(10).getMillis(), scheduleId, 10.0),
             new MeasurementDataNumeric(hour(10).plusMinutes(15).getMillis(), scheduleId, 15.0)
-        ).await("Failed to insert raw data");
+        );
+        WaitForRawInserts waitForRawInserts = new WaitForRawInserts(data.size());
+        metricsServer.addNumericData(data, waitForRawInserts);
+        waitForRawInserts.await("Failed to insert raw data");
 
         // now after the server starts back up in the 14th hour,
         //
         //  2) re-initialize the metrics server
         //  3) insert some more raw data
         setNow(hour0().plusHours(16));
-        metricsServer.init(MIN_SCHEDULE_ID, MAX_SCHEDULE_ID);
+        metricsServer.init();
 
-        insertRawData(hour(14),
+        data = ImmutableSet.of(
             new MeasurementDataNumeric(hour(14).plusMinutes(20).getMillis(), scheduleId, 3.0),
             new MeasurementDataNumeric(hour(14).plusMinutes(25).getMillis(), scheduleId, 5.0),
             new MeasurementDataNumeric(hour(14).plusMinutes(30).getMillis(), scheduleId, 13.0)
-        ).await("Failed to insert raw data");
+        );
+        waitForRawInserts = new WaitForRawInserts(data.size());
+        metricsServer.addNumericData(data, waitForRawInserts);
+        waitForRawInserts.await("Failed to insert raw data");
 
         // Now let's assume we have reached the top of the hour and run the scheduled
         // aggregation.
@@ -392,24 +399,31 @@ public class MetricsServerTest extends MetricsTest {
         DateTime hour0Yesterday = hour0().minusDays(1);
 
         // insert data before server shutdown
-        insertRawData(hour20Yesterday,
+        setNow(hour20Yesterday.plusHours(1));
+        Set<MeasurementDataNumeric> data = ImmutableSet.of(
             new MeasurementDataNumeric(hour20Yesterday.plusMinutes(5).getMillis(), scheduleId, 7.0),
             new MeasurementDataNumeric(hour20Yesterday.plusMinutes(10).getMillis(), scheduleId, 2.5),
             new MeasurementDataNumeric(hour20Yesterday.plusMinutes(15).getMillis(), scheduleId, 4.0)
-        ).await("Failed to insert raw data");
+        );
+        WaitForRawInserts waitForRawInserts = new WaitForRawInserts(data.size());
+        metricsServer.addNumericData(data, waitForRawInserts);
+        waitForRawInserts.await("Failed to insert raw data");
 
         // now after the server starts back up in the 8th hour,
         //
         //  2) re-initialize the metrics server
         //  3) insert some more raw data
         setNow(hour0().plusHours(10));
-        metricsServer.init(MIN_SCHEDULE_ID, MAX_SCHEDULE_ID);
+        metricsServer.init();
 
-        insertRawData(hour(8),
+        data = ImmutableSet.of(
             new MeasurementDataNumeric(hour(8).plusMinutes(20).getMillis(), scheduleId, 8.0),
             new MeasurementDataNumeric(hour(8).plusMinutes(25).getMillis(), scheduleId, 16.0),
             new MeasurementDataNumeric(hour(8).plusMinutes(30).getMillis(), scheduleId, 3.0)
-        ).await("Failed to insert raw data");
+        );
+        waitForRawInserts = new WaitForRawInserts(data.size());
+        metricsServer.addNumericData(data, waitForRawInserts);
+        waitForRawInserts.await("Failed to insert raw data");
 
         // Now let's assume we have reached the top of the hour and run the scheduled
         // aggregation.

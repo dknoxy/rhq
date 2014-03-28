@@ -470,11 +470,5 @@ public class StorageClientManagerBean {
         DateTimeService dateTimeService = new DateTimeService();
         dateTimeService.setConfiguration(metricsConfiguration);
         metricsServer.setDateTimeService(dateTimeService);
-        int[] ids = measurementScheduleManager.getMinAndMaxScheduleIds();
-        if (ids == null) {
-            metricsServer.init();
-        } else {
-            metricsServer.init(ids[0], ids[1]);
-        }
     }
 }
